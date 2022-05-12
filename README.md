@@ -18,13 +18,13 @@ This session will provide a hands-on introduction to basic network analysis tool
 We will use **R** to write and run code. You have two options:
 
 1. Use **[Google Colab](https://colab.research.google.com/notebooks/intro.ipynb#recent=true)** to work in the cloud via your web browser.
-  1. You will need a Google account to use Colab so if you don't already have one, create it. Other than that, you do not need to install any specialized software.
-  2. Open the [Colab file]() in your browser by by first clicking on the link and then on `Open with Google Colaboratory` on top of the page.
-  3. Click on `Copy to Drive` to create your own copy, which you can edit and save.
+    1. You will need a Google account to use Colab so if you don't already have one, create it. Other than that, you do not need to install any specialized software.
+    2. Open the [Colab file]() in your browser by by first clicking on the link and then on `Open with Google Colaboratory` on top of the page.
+    3. Click on `Copy to Drive` to create your own copy, which you can edit and save.
 
 2. Alternatively, if you already have **R and RStudio** installed:
-  1. Clone/download this repository on your computer by clicking on the green `Code` button above.
-  2. Open the `.Rmd` file from the cloned repository in RStudio.
+    1. Clone/download this repository on your computer by clicking on the green `Code` button above.
+    2. Open the `.Rmd` file from the cloned repository in RStudio.
 
 ## Further Resources
 
