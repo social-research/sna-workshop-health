@@ -1,0 +1,327 @@
+---
+title: "Social Network Analysis/Demonstration" 
+subtitle: "Emotional Well-Being and Physical Health, University College London"
+author: "Milena Tsvetkova"
+date: "July 13, 2022"
+output:
+  html_document:
+    code_folding: show
+  pdf_document: default
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<br>
+
+## Outline
+
+1. Basic network terminology and network data
+2. Ego networks
+3. Whole networks
+
+We will work with the R package `igraph`, which provides versatile tools for network data import, manipulation, visualization, and analysis (see more at <http://igraph.org/r/>). Run the code below to install the latest version of the package:
+
+```{r, message=FALSE, warning=FALSE}
+#install.packages("igraph")
+#install.packages("egor")
+#install.packages("dplyr")
+```
+
+## Network terminology and data
+
+Social network analysis stems from a number of disciplines - mathematics, sociology, physics, and computer science. As a result, network scientists use multiple terms that may overlap in meaning. For example, one may interchangeably use the terms "node" or "vertex." Similarly, one may describe connections between vertices as "edges", "ties", "links", or "dyads." 
+
+There are two main types of networks we can analyze: ego networks and whole networks. 
+
+**Ego network data** typically come from random sample surveys that contain **name generators**: survey questions that prompt survey participants to think about people they know, how often they interact with them, who they are, and whether they know each other. Because the population we sample from is much larger than any individual's personal network, we typically assume that the observations (both the survey respondents and the contacts they name) are independent and do not overlap. We can hence apply standard statistical models such as linear and logistic regression and make inferences about the population. One of the largest and most prominent data sources of ego network data is the [General Social Survey (GSS)](https://gssdataexplorer.norc.org).
+
+**Whole network data** can also come from name-generator surveys but these surveys aim to be a census of everyone at a particular organization, school, community, village, or any other well defined and delineated group. Another main source of whole network data are digital records of online communication on social media platforms and online communities. In either case, the aim is to get information about everyone in the group/community and how they are connected with each other. It is clear that in this case we cannot treat observations (whether individuals or links) as independent because my friends may be friends of someone else in the network and my friendships relate to the friendship choices of others. If we want to explain the network or how the network affects individual choices and behavior, we need to employ more sophisticated statistical methods that account for the interdependence of observations. Several such methods have been developed: Exponential Random Graph Models, Stochastic Actor Oriented Models, or network permutation approaches, for example. One important source of whole network data is the [The National Longitudinal Study of Adolescent to Adult Health (Add Health)](https://addhealth.cpc.unc.edu/). These days, however, there are also health and well-being studies that use data and text mining techniques to obtain network data from social media platforms such as Twitter (see Munmun De Choudhury's work for example).
+
+Here, we will briefly introduce both types of data and some simple ways to visualize and analyze them.
+
+Begin by loading the necessary packages. 
+
+```{r, message=FALSE, warning=FALSE}
+library(igraph)
+library(egor)
+library(dplyr)
+```
+
+<br>
+
+## Ego Networks
+
+Ego network data looks like regular survey data, where each row is a respondent and each column contains the respondent's answer to a survey question. In addition to typical demographic, health, well-being, and similar variables, the data contain variables for each contact the respondent mentioned in the name generator. For example, a variable such as "age1" will record the age of the first contact the respondent mentioned and "sex3", the sex/gender of the third contact mentioned. In addition, the data may contain measures of the strength and nature of the respondent's relationship to that person (e.g., "talkto2") and how well the mentioned persons know each other (e.g., "close12" can record whether respondent's contact 1 is a close friend of respondent's contact 2).
+
+As an example, we will use a subset of the 2004 GSS survey data. The complete data, including variable descriptions and actual survey questions, are available here [here](https://gssdataexplorer.norc.org/home). The name generator the survey used is as follows:
+
+> From time to time, most people discuss important matters with other people. Looking back over the last
+six months - who are the people with whom you discussed matters important to you? Just tell me their
+first names or initials.
+
+### Reading ego network data from file
+
+We will begin by reading in and processing the data.
+
+
+```{r, message=FALSE, warning=FALSE}
+
+# Read data from csv file
+egos <- read.csv("data/gss2004_sample.csv", header=T)
+
+# Parse as numeric types
+egos$age <- as.numeric(as.character(egos$age))
+egos$mntlhlth <- as.numeric(as.character(egos$mntlhlth))
+
+# Create ego id
+egos$egoid <- 1:nrow(egos)
+
+# Create network size variable
+egos$netsize = rowSums(!is.na(egos[c('sex1', 'sex2', 'sex3', 'sex4', 'sex5')]))
+
+# Recode tie strength to numeric
+for (i in c("talkto1", "talkto2", "talkto3", "talkto4", "talkto5")) {
+  egos[[i]] <- recode(egos[[i]],
+                      "lt once a month"=1, 
+                      "once a month"=2, 
+                      "once a week"=3, 
+                      "almost daily"=4) 
+}
+
+# Recode relations between contacts to numeric
+for (i in c("close12", "close13", "close14", "close15", 
+            "close23", "close24", "close25", 
+           "close34", "close35", "close45")) {
+  egos[[i]] <- recode(egos[[i]],
+                      "total strangers"=0, 
+                      "know each other"=1, 
+                      "especially close"=2) 
+}
+
+# Recode variable health1, which records responses to question:
+# "Would you say that in general your health is Excellent, Very good, Good, Fair, or Poor?""
+egos$health1 <- recode(egos$health1,
+                       "poor"=1, 
+                       "fair"=2, 
+                       "good"=3, 
+                       "very good"=4, 
+                       "excellent"=5, 
+                       "DONT KNOW"=NA_real_)
+
+# Note that variable "mntlhlth" stands for "Days of poor mental health past 30 days"
+# The question is: "Now thinking about your mental health, which includes stress, 
+# depression, and problems with emotions, for how many days during the past 
+# 30 days was your mental health not good?""
+```
+
+
+### Analyzing ego network data
+
+One thing we can already do with the given data is to use simple statistical models to predict outcomes of interest with the **number of close contacts** the respondent mentioned. The hypothesis is that individuals with larger support networks experience fewer problems with their mental and physical health.
+
+```{r, message=FALSE, warning=FALSE}
+# Predict bad mental health
+model1 = lm(mntlhlth ~ age + sex + numgiven, data=egos)
+summary(model1)
+
+# Predict good general health
+model2 = lm(health1 ~ age + sex + numgiven, data=egos) 
+summary(model2)
+```
+We find that men report fewer days of bad mental health in the past month but the number of close social contacts does not seem to have an effect. 
+
+Regarding general health however, we do find a social effect. Controlling for the fact that health deteriorates with age, we find that respondents who name a higher number of close social contacts report better health.
+
+If we want to conduct a more sophisticate analysis, we can use the specialized library `egor`. This requires some additional data pre-processing. 
+
+```{r, message=FALSE, warning=FALSE}
+# Create egor object from data
+# Source: https://cran.r-project.org/web/packages/egor/vignettes/qualtrics.html
+e1 <- onefile_to_egor(egos = egos,
+                      netsize = egos$netsize,
+                      ID.vars = list(ego = "egoid"),
+                      attr.start.col = "sex1",  # Name of Variable with the first alter attribute
+                      attr.end.col = "talkto5",  # Name of variable with last alter attribute
+                      max.alters = 5,  # Number of maximum alters that were named by participants
+                      aa.first.var = "close12")  # Name of first alter-alter variable
+e1
+summary(e1)
+```
+The library allows to visualize the ego networks and more importantly, easily obtain important ego network metrics that we can then enter in models to predict outcomes of interest.
+
+### Advanced ego network metrics
+
+#### Density
+
+This metric estimates the proportion (or strength) of ties among the respondent's close contacts that are present out of all possible. For example, if I have three friends, there are three possible links between them: 1 and 2, 1 and 3, and 2 and 3. If only the first two exist but friend 2 and 3 do not know each other, then the density is 2/3 = 0.667. Density is undefined when the size of the network is < 2.
+
+```{r, message=FALSE, warning=FALSE}
+ego_density(e1)
+```
+
+#### Network composition
+
+This metric estimates the composition of the respondent's network for a given characteristic.
+
+```{r, message=FALSE, warning=FALSE}
+composition(e1, "sex") %>% 
+  head() 
+
+# Notice that .egoID is sorted differently in this case, so you will need to
+# manipulate the data before joining with the original dataset
+```
+
+We can use metrics like these to conduct more sophisticated analyses of network effects. A plausible hypothesis is that dense networks provide more support and hence, individuals with denser networks will experience fewer mental health problems. Notice, however, that since density is not defined for networks of size 0 or 1, the model is restricted to a much smaller subsample.  
+
+```{r, message=FALSE, warning=FALSE}
+
+# Add density estimates to original data
+egos$dens <- ego_density(e1)$density
+
+# Predict bad mental health with network size and density
+model1 = lm(mntlhlth ~ age + sex + numgiven + dens, data=egos)
+summary(model1)
+```
+The coefficient for density is negative as predicted but the effect is not statistically significant. Thus, in this case, we do not find statistical evidence for the hypothesized effect.
+
+<br>
+
+## Whole Networks
+
+Whole network data is most commonly supplied in the form of node and edge lists. An edge list takes the form of a data frame with at least two columns: the first is the "ego" or "source" vertex and the second -- the "alter" or "target" vertex. It is also possible to include additional columns that contain information about the specific relationship, e.g., its strength. Edge lists record every connection that exists in the network. This means that if there are **isolates** in the network, i.e. nodes that have no connections, they will not be present in the edge list. The node list contains all nodes, including the isolates, together with node properties such as socio-demographic characteristics, opinions, health and well-being indicators, and many others.
+
+As an example, we will use a synthetic dataset that was generated to approximate a school network. The data contain friendship relations, and the students' grade, sex, and race. You can read more about the data [here](https://rdrr.io/github/statnet/statnet.data/man/faux.dixon.high.html).  
+
+### Reading network data from files
+
+```{r, message=FALSE, warning=FALSE}
+
+# We first read the csv data into the native R dataframe type
+nodes <- read.csv("data/dixon_high_nodes.csv", header=T, as.is=T)
+edges <- read.csv("data/dixon_high_edgelist.csv", header=T, as.is=T)
+
+# Next, we create a single igraph object from the two dataframes
+# The object represents a directed network
+dixon <- graph_from_data_frame(d=edges, vertices=nodes, directed=T)
+
+# Calling the object gives us a summary and attempts to print all edges
+# You can also use summary(dixon) or print(dixon) to the same effect
+dixon
+```
+
+We can see that the network is directed and has 248 node and 1197 edges. Using `E()` and `V()` and the `$` operator, we can also access specific attributes associated with the edges and the vertices:
+
+```{r, message=FALSE, warning=FALSE}
+V(dixon)$sex
+```
+
+
+### Visualizing networks
+
+We can simply call `plot` to visualize the network.
+
+```{r, message=FALSE, warning=FALSE}
+plot(dixon)
+```
+
+The patterns are difficult to see in the plot because the nodes overlap and the node labels create a clutter. To improve the visualization, we will remove the vertex labels and specify values for the edge arrow size and the vertex size. There is no silver bullet here, the optimal values will depend on the network size and structure. Beautiful network visualizations usually require much tinkering and trial and error!
+
+```{r, message=FALSE, warning=FALSE}
+plot(dixon, edge.arrow.size=.4, vertex.size=5, vertex.label=NA)
+```
+
+We can now clearly see that the network has a **core-periphery structure**, with some students more popular than others. We also observe nine **isolates** -- nodes that have no friendship links to anyone.
+
+We can get further insights about the network when we color the nodes by gender or race.
+
+```{r, message=FALSE, warning=FALSE}
+# Create two plots next to each other
+par(mfrow=c(1, 2), mar=c(1.5, .1, .1, .1))
+
+# For sex, generate a vector of colors to correspond to the two different values
+sex_cols <- c("gray50", "tomato")
+
+# Use the values from the data to index from sex_cols
+plot(dixon, edge.arrow.size=.4, vertex.size=5, vertex.label=NA,
+     vertex.color=sex_cols[V(dixon)$sex])
+# Add a legend to explain the values
+legend(x=-1.1, y=-1.1, c("Male", "Female"), pch=21, pt.bg=sex_cols)
+
+
+# For race, we cannot use the values to index, so instead create a dataframe to map the colors 
+race_cols <- data.frame(race = c('B', 'H', 'O', 'W'), 
+              color = c('skyblue', 'limegreen', 'white', 'tan1'), stringsAsFactors = F)
+# Use the values in the data to get the correct indeces for the color map 
+plot(dixon, edge.arrow.size=.4, vertex.size=5, vertex.label=NA,
+     vertex.color=race_cols$color[match(V(dixon)$race, race_cols$race)])
+# Add a legend
+legend(x=-1.1, y=-1.1, c("Black", "Hispanic", "Other", "White"), pch=21, pt.bg=race_cols$color, ncol=2)
+```
+
+The plots show **assortativity** by sex and even more so by race, meaning that links are observed more often between students who have the same sex or the same race. This could be due to **homophily**, or the preference for similar others, but also institutional and organizational constraints and biases - e.g., racial segregation in residential neighborhoods.
+
+### Common network metrics
+
+There are multiple important metrics that help us describe and understand the structure of networks. 
+
+#### Reciprocity
+
+For a directed network, reciprocity measures the proportion of edges that are reciprocated. Friendship networks usually have high reciprocity, which means that friendship nominations tend to be mutual.
+
+```{r, message=FALSE, warning=FALSE}
+reciprocity(dixon)
+```
+
+#### Transitivity
+
+Transitivity measures the proportion of triads with the links A-B and A-C where the link B-C is also present. Transitivity is a measure of clustering, or the idea that "the friend of my friend is my friend too."
+
+```{r, message=FALSE, warning=FALSE}
+transitivity(dixon)
+```
+
+#### Node centrality
+
+There are many different ways to conceptualize and measure the importance of nodes in a network. One metric that presents an intuitive understanding of popularity is **indegree** -- we simply count how many times others name the focal node as a friend. We can use the function `degree()` with the parameter `mode="in"` to estimate the indegrees of all nodes in the network.
+
+```{r, message=FALSE, warning=FALSE}
+# Estimate the average indegree in the network
+mean(degree(dixon, mode="in"))
+```
+
+We will now plot the network again but this time the size of nodes will correspond to their popularity.
+
+```{r, message=FALSE, warning=FALSE}
+# Set up the margins to make sure the legend is not cut off
+par(mar=c(1.5, 0, 0, 0))
+
+# Estimate the indegree to use to size up the nodes
+indeg <- degree(dixon, mode="in")
+
+# Notice how we use the indeg vector to specify vertex.size
+plot(dixon, edge.arrow.size=.4, vertex.size=indeg, vertex.label=NA,
+     vertex.color=race_cols$color[match(V(dixon)$race, race_cols$race)])
+
+legend(x=-1.1, y=-1.1, c("Black", "Hispanic", "Other", "White"), pch=21,
+       pt.bg=race_cols$color, horiz=TRUE)
+```
+
+We notice that white students tend to be more popular than black students. However, this may be partially driven by the fact that white students tend to name other white students as friends and white students are the largest race group in this school.
+
+#### Assortativity
+
+We can quantify the extent of assortativity in the network with several functions. For categorical variables such as sex and race, we can use `assortativity_nominal()`, for ordinal and continuous variables -- `assortativity()`, and for degrees specificially -- `assortativity_degree()`. Intuitively, assortativity can vary from 1 to -1, where 1 means that links occur only between identical others and -1 means that similar individuals avoid each other and links occur only between dissimilar others. Due to homophily, friendship networks tend to have positive assortativity but due to heterosexuality being dominant, sexual preference networks tend to exhibit negative assortativity. 
+
+```{r, message=FALSE, warning=FALSE}
+print(assortativity_nominal(dixon, V(dixon)$sex, directed=F))
+
+# Notice we force race to be treated as factor variable as otherwise we get an error
+print(assortativity_nominal(dixon, factor(V(dixon)$race), directed=F))
+```
+
+These measures allow us to quantify what we already observed in one of the plots above, namely, that assortativity by race is much stronger than assortativity by gender.
+
+<br>
+
