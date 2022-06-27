@@ -16,10 +16,11 @@ This session will provide a hands-on introduction to basic network analysis tool
 ## Software
 
 We will use **R** to write and run code. If you already have **R and RStudio** installed on your machine:
-    1. Clone/download this repository on your computer by clicking on the green `Code` button above.
-    2. Open the `.Rmd` file from the cloned repository in RStudio.
 
-If you do not have access to or any experience with RStudio, you can simply open the .html file in your browser and follow along.
+1. Clone/download this repository on your computer by clicking on the green `Code` button above.
+2. Open the `.Rmd` file from the cloned repository in RStudio.
+
+If you do not have access to or any experience with RStudio, still download the files, then simply open the .html file in your browser and follow along.
 
 ## Further Resources
 
