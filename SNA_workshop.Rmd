@@ -21,7 +21,9 @@ knitr::opts_chunk$set(echo = TRUE)
 2. Ego networks
 3. Whole networks
 
-We will work with the R package `igraph`, which provides versatile tools for network data import, manipulation, visualization, and analysis (see more at <http://igraph.org/r/>). Run the code below to install the latest version of the package:
+We will work with three R packages: `igraph`, `egor`, and `dplyr`. The package `igraph` provides versatile tools for network data import, manipulation, visualization, and analysis (see more at <http://igraph.org/r/>). The package `egor` does the same but specifically for ego network data (see more at <https://egor.tillt.net/>). Finally, the package `dplyr` provides functions and dedicated grammar for data manipulation (see more at <https://dplyr.tidyverse.org/>).
+
+Run the code below to install the latest version of the packages if you don't have them already:
 
 ```{r, message=FALSE, warning=FALSE}
 #install.packages("igraph")
@@ -53,7 +55,7 @@ library(dplyr)
 
 ## Ego Networks
 
-Ego network data looks like regular survey data, where each row is a respondent and each column contains the respondent's answer to a survey question. In addition to typical demographic, health, well-being, and similar variables, the data contain variables for each contact the respondent mentioned in the name generator. For example, a variable such as "age1" will record the age of the first contact the respondent mentioned and "sex3", the sex/gender of the third contact mentioned. In addition, the data may contain measures of the strength and nature of the respondent's relationship to that person (e.g., "talkto2") and how well the mentioned persons know each other (e.g., "close12" can record whether respondent's contact 1 is a close friend of respondent's contact 2).
+Ego network data look like regular survey data, where each row is a respondent and each column contains the respondent's answer to a survey question. In addition to typical demographic, health, well-being, and similar variables, the data contain variables for each contact the respondent mentioned in the name generator. For example, a variable such as "age1" will record the age of the first contact the respondent mentioned and "sex3", the sex/gender of the third contact mentioned. In addition, the data may contain measures of the strength and nature of the respondent's relationship to that person (e.g., "talkto2") and how well the mentioned persons know each other (e.g., "close12" can record whether respondent's contact 1 is a close friend of respondent's contact 2).
 
 As an example, we will use a subset of the 2004 GSS survey data. The complete data, including variable descriptions and actual survey questions, are available here [here](https://gssdataexplorer.norc.org/home). The name generator the survey used is as follows:
 
@@ -134,7 +136,7 @@ We find that men report fewer days of bad mental health in the past month but th
 
 Regarding general health however, we do find a social effect. Controlling for the fact that health deteriorates with age, we find that respondents who name a higher number of close social contacts report better health.
 
-If we want to conduct a more sophisticate analysis, we can use the specialized library `egor`. This requires some additional data pre-processing. 
+If we want to conduct a more sophisticated analysis, we can use the specialized library `egor`. This requires some additional data pre-processing. 
 
 ```{r, message=FALSE, warning=FALSE}
 # Create egor object from data
@@ -176,7 +178,6 @@ composition(e1, "sex") %>%
 We can use metrics like these to conduct more sophisticated analyses of network effects. A plausible hypothesis is that dense networks provide more support and hence, individuals with denser networks will experience fewer mental health problems. Notice, however, that since density is not defined for networks of size 0 or 1, the model is restricted to a much smaller subsample.  
 
 ```{r, message=FALSE, warning=FALSE}
-
 # Add density estimates to original data
 egos$dens <- ego_density(e1)$density
 
@@ -190,7 +191,7 @@ The coefficient for density is negative as predicted but the effect is not stati
 
 ## Whole Networks
 
-Whole network data is most commonly supplied in the form of node and edge lists. An edge list takes the form of a data frame with at least two columns: the first is the "ego" or "source" vertex and the second -- the "alter" or "target" vertex. It is also possible to include additional columns that contain information about the specific relationship, e.g., its strength. Edge lists record every connection that exists in the network. This means that if there are **isolates** in the network, i.e. nodes that have no connections, they will not be present in the edge list. The node list contains all nodes, including the isolates, together with node properties such as socio-demographic characteristics, opinions, health and well-being indicators, and many others.
+Whole network data are most commonly supplied in the form of node and edge lists. An edge list takes the form of a data frame with at least two columns: the first is the "ego" or "source" vertex and the second -- the "alter" or "target" vertex. It is also possible to include additional columns that contain information about the specific relationship, e.g., its strength. Edge lists record every connection that exists in the network. This means that if there are **isolates** in the network, i.e. nodes that have no connections, they will not be present in the edge list. The node list contains all nodes, including the isolates, together with node properties such as socio-demographic characteristics, opinions, health and well-being indicators, and many others.
 
 As an example, we will use a synthetic dataset that was generated to approximate a school network. The data contain friendship relations, and the students' grade, sex, and race. You can read more about the data [here](https://rdrr.io/github/statnet/statnet.data/man/faux.dixon.high.html).  
 
@@ -312,7 +313,7 @@ We notice that white students tend to be more popular than black students. Howev
 
 #### Assortativity
 
-We can quantify the extent of assortativity in the network with several functions. For categorical variables such as sex and race, we can use `assortativity_nominal()`, for ordinal and continuous variables -- `assortativity()`, and for degrees specificially -- `assortativity_degree()`. Intuitively, assortativity can vary from 1 to -1, where 1 means that links occur only between identical others and -1 means that similar individuals avoid each other and links occur only between dissimilar others. Due to homophily, friendship networks tend to have positive assortativity but due to heterosexuality being dominant, sexual preference networks tend to exhibit negative assortativity. 
+We can quantify the extent of assortativity in the network with several functions. For categorical variables such as sex and race, we can use `assortativity_nominal()`, for ordinal and continuous variables -- `assortativity()`, and for degrees specifically -- `assortativity_degree()`. Intuitively, assortativity can vary from 1 to -1, where 1 means that links occur only between identical others and -1 means that similar individuals avoid each other and links occur only between dissimilar others. Due to homophily, friendship networks tend to have positive assortativity but due to heterosexuality being dominant, sexual preference networks tend to exhibit negative assortativity. 
 
 ```{r, message=FALSE, warning=FALSE}
 print(assortativity_nominal(dixon, V(dixon)$sex, directed=F))
